@@ -20,10 +20,9 @@ if not GEMINI_API_KEY:
     print(s["api_key_url"])
     sys.exit(1)
 
-GEMINI_MODEL = "gemini-2.5-flash-preview-04-17"
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 
 # ==================== 热键配置 ====================
-HOTKEY = "F9"            # 触发截图分析的全局热键
 TOGGLE_HOTKEY = "Ctrl+F12"    # 切换悬浮窗显示/隐藏（全局热键，游戏中可用）
 
 # ==================== UI 配置 ====================
@@ -40,6 +39,12 @@ OVERLAY_OPACITY = 0.92             # 窗口不透明度 (0.0 ~ 1.0)
 # ==================== 截图配置 ====================
 SCREENSHOT_DIR = os.path.join(os.path.dirname(__file__), "screenshots")
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+
+# ==================== ApexLol 数据增强 ====================
+APEXLOL_ENABLED = True                 # 是否启用 apexlol.info 数据增强
+APEXLOL_CACHE_DIR = os.path.join(os.path.dirname(__file__), "apexlol_cache")
+APEXLOL_CACHE_TTL_DAYS = 7             # 缓存过期天数
+os.makedirs(APEXLOL_CACHE_DIR, exist_ok=True)
 
 # ==================== Prompt 配置 ====================
 from lang import STRINGS, PROMPTS

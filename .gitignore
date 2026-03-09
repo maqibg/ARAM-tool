@@ -5,3 +5,8 @@ screenshots/
 gh.exe
 lcu_client.py
 .env
+apexlol_cache/
+test_scraper.py
+test_filter.py
+test_filter2.py
+test_models.py
