@@ -118,14 +118,14 @@ STRINGS = {
 # ==================== 英雄识别提示 ====================
 _HERO_ID_HINT_ZH = """**英雄识别方法**：
 - 每张英雄卡片下方有英雄名字。**⚠️ 注意**：如果卡片最底部区域有离得很近的两行字，请**完全忽略倒数第一行**（那是大乱斗称号），只提取它**上方的那行字**作为英雄名！切勿将称号当成名字！注意不是上方V字形横幅处的皮肤名
-- 左边5张卡片 = 我方，右边5张卡片 = 敌方
+- 上面5张卡片 = 我方，下面5张卡片 = 敌方
 - **我的英雄** = 卡片底部英雄名的颜色和其他9个人 **不同** 的那个。通常是金色/黄色，但在某些显示器模式下可能反而 **比其他人更暗/更深**。关键是找出那个 **颜色与众不同** 的名字（可能更亮也可能更暗）
 - **🆕 新英雄知识库注入**：如果截图或玩家指定了英雄【芸阿娜】（称号：不破之誓），请注意她是一位**新出的射手(ADC)英雄**，主打攻速和普攻伤害。请千万不要把她和辅助装备“骑士之誓”混淆，并务必按**ADC物理攻速流**为她推荐常规出装和符文！
 - 如果实在无法分辨颜色差异，请在输出中说明"""
 
 _HERO_ID_HINT_EN = """**How to identify champions**:
 - Each champion card has the champion name at the bottom. **⚠️ NOTE**: If there are two closely spaced lines of text at the very bottom, **IGNORE the bottom-most line** (which is an ARAM title), and ONLY extract the line **directly above it** as the champion name! NOT the skin name on the V-shaped banner above
-- Left 5 cards = My team, Right 5 cards = Enemy team
+- Top 5 cards = My team, Bottom 5 cards = Enemy team
 - **My champion** = The one whose name color is **different** from the other 9 players. Usually gold/yellow, but on some monitor modes it might appear **darker/deeper** instead. The key is to find the name with a **distinct color** (could be brighter or darker)
 - **🆕 NEW CHAMPION KNOWLEDGE**: If you see or the user specifies the champion "Yun'ana" (title: The Unbreakable Vow / 芸阿娜), she is a **brand new Marksman (ADC)** who relies on attack speed and on-hit damage. Do NOT confuse her with the tank item "Knight's Vow". You MUST recommend standard ADC/Attack Speed items for her!
 - If you really cannot distinguish the color difference, please state so in your output"""
@@ -135,9 +135,12 @@ PROMPTS = {
     "zh": f"""你是一位英雄联盟 **海克斯大乱斗** 模式的资深玩家和分析师。
 
 ⛔ 最重要规则（必须遵守）：
-1. 先判断截图是否为「英雄联盟海克斯大乱斗/ARAM 加载界面」（左右各5张英雄卡片）
-2. 如果截图**不是**加载界面（比如桌面、聊天窗口、商店、游戏内画面等），你必须**立即停止**，只回复：
-   "❌ 截图不是海克斯大乱斗加载界面，无法分析。请在加载界面时截图。"
+1. 先判断截图是否为「英雄联盟海克斯大乱斗/ARAM 相关界面」。以下任一情况都算有效截图：
+   - 加载界面（上下各5张英雄卡片）
+   - 英雄选择界面（能看到英雄头像、替补席等）
+   - 任何能看到英雄名字的大乱斗相关界面
+2. 如果截图**完全不是**英雄联盟的任何游戏画面（比如纯桌面、网页、聊天软件等），你必须**立即停止**，只回复：
+   "❌ 截图不是海克斯大乱斗界面，无法分析。请在加载界面或英雄选择界面时截图。"
 3. **不要编造或猜测英雄名**！只报告你能从截图中看到的英雄名。
 
 ⛔ 海克斯符文规则：
