@@ -305,11 +305,20 @@ class App:
 
             t1 = _time.time()
             log.info("[Gemini] ⏳ 全局分析中...")
-            result = analyze_screenshot(png_bytes, manual_champion=manual_champion)
+            result = analyze_screenshot(
+                png_bytes, 
+                manual_champion=manual_champion,
+                hextech_history=_hextech_history
+            )
             log.info(f"[Gemini] ✅ {len(result)} 字符 ({_time.time()-t1:.1f}s)")
 
             _global_strategy = result
-            _hextech_history = []  # 新局重置海克斯历史
+            
+            # 只有在非游戏中（InProgress）阶段才重置历史，确保游戏内更新能继承记忆
+            from lcu_client import get_gameflow_phase
+            if get_gameflow_phase() != "InProgress":
+                _hextech_history = []  # 新局/加载中重置海克斯历史
+
 
             # 在主线程中显示结果
             self.root.after(0, lambda: self._show_global_result(result))
@@ -429,17 +438,28 @@ class App:
     def _extract_hextech_name(self, analysis_text: str) -> str:
         """从海克斯分析结果中提取推荐的符文名。"""
         import re
-        # 尝试匹配 **选项X：符文名** 或 **Option X: Name**
+        # 优先级 1: 匹配箭头指向的推荐项 (例如 **选项1：全能吸取** ← 选这个)
+        match = re.search(r'\*\*(?:选项|Option)\s*\w[：:]\s*(.+?)\*\*\s*←', analysis_text)
+        if match:
+            return match.group(1).strip()
+        
+        # 优先级 2: 匹配加粗的选项行 (例如 **选项1：全能吸取**)
         match = re.search(r'\*\*(?:选项|Option)\s*\w[：:]\s*(.+?)\*\*', analysis_text)
         if match:
-            return match.group(1).strip().split("←")[0].strip()
-        # 备选：匹配第一个 **xxx** 模式
+            # 过滤干扰词
+            name = match.group(1).strip()
+            return name.split("---")[0].split("(")[0].strip()
+
+        # 优先级 3: 匹配第一个加粗的短语（通常是第一个推荐项）
         match = re.search(r'\*\*(.+?)\*\*', analysis_text)
         if match:
             name = match.group(1).strip()
-            if len(name) < 30:  # 合理长度
+            if 1 < len(name) < 25: 
                 return name
-        return "未知符文"
+
+        log.warning(f"[海克斯] 提取推荐名失败，AI原文: {analysis_text[:100]}...")
+        return None
+
 
     def _run_strategy_update(self, latest_hextech: str):
         """后台线程：更新全局攻略。"""

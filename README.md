@@ -126,6 +126,13 @@ LANGUAGE = "en"   # English
 - 本工具**不读取、不修改任何游戏数据**，仅通过截取屏幕截图 + AI 分析提供参考建议。但不排除 Riot 可能将此类第三方工具误判为违规，**使用本工具请自行评估封号风险**
 - 使用本工具时请遵守游戏的使用条款
 
+## Contributors
+
+- **[USER]** - Project logic & review
+- **Antigravity (AI)** - Implementation & Optimization
+
+Welcome to submit Pull Requests!
+
 ## 📄 License
 
 MIT

@@ -58,12 +58,25 @@ def _call_with_retry(*, model, contents, config, label="API"):
 # ==================== 阶段1：英雄识别 Prompt ====================
 _IDENTIFY_PROMPT_ZH = """请识别这张海克斯大乱斗加载界面截图中的所有英雄。
 
-如果这不是英雄联盟「海克斯大乱斗」或「大乱斗」的加载界面（必须能看到上下各5张英雄卡片，或者英雄选择界面），请直接回复纯JSON：
+如果这不是英雄联盟的加载界面，也不是游戏内的战绩表（Scoreboard/TAB 界面），请回复：
 {"error": "not_loading_screen"}
 
-每张英雄卡片下方有英雄名字。⚠️ 注意：卡片最底部或中间区域可能有皮肤名或称号，请**只提取**位于**圆形魄罗头像 (Poro Icon)** 正下方的文字。
+**情况 A：大乱斗加载界面**
+按照之前的层级识别：账号头像 -> 正下方第一行 -> 金色英雄名（我）。
+
+**情况 B：游戏内战绩表 (Scoreboard/TAB)**
+识别战绩表中列出的所有英雄名。我方通常在左边或上方。
+如果能看到变色（如高亮行），那代表“我”。
+
+**情况 C：英雄选择界面**
+识别已确认选定的英雄。
+
+每张英雄卡片在底部的 V 字形区域包含关键信息。请严格按照以下层级识别：
+1. **定位锚点**：先找到位于 V 字形孔中间的**圆形账号头像**（Summoner Icon）。
+2. **锁定英雄名**：提取账号头像**正下方第一行**的文字。
+3. **判定“我”**：在这个位置上，只有颜色为**金色/亮黄色**的英雄名才代表“玩家本人”。如果是白色，则为队友。
+⚠️ 排除：忽略头像上方的皮肤名，以及卡片最底部（英雄名下方）的称号。
 上面5张 = 我方，下面5张 = 敌方（如果是水平排列）。
-**我的英雄锁定逻辑**：在英雄卡片的**中下部区域**，先找到那个**圆形魄罗头像**，然后提取其**正下方、颜色为金色/亮黄色**的文字作为“我的英雄”名。这是锁定玩家本人最核心、最唯一的视觉地标。
 
 请用 JSON 格式回复（不要任何其他文字）：
 {"my_team": ["英雄1", "英雄2", "英雄3", "英雄4", "英雄5"], "enemy_team": ["英雄1", "英雄2", "英雄3", "英雄4", "英雄5"], "my_champion": "我的英雄"}
@@ -126,27 +139,44 @@ def identify_champions(png_bytes: bytes) -> dict | None:
         return None
 
 
-def analyze_screenshot(png_bytes: bytes, manual_champion: str = None) -> str:
+def analyze_screenshot(png_bytes: bytes, manual_champion: str = None,
+                       hextech_history: list[str] = None) -> str:
     """全局分析：加载界面截图 → 完整攻略。
 
     极速单次 API 调用架构：
     1. 不分两阶段，避免两轮网络请求的巨大延迟（实测两轮需要8-12秒）。
-    2. 将 ApexLol 高分数据「极限压缩」（只保留英雄名和SS/S/A极海克斯名，丢弃长篇分析文本）。
+    2. 将 ApexLol 高分数据「极限压缩」（只保留英雄名 and SS/S/A极海克斯名，丢弃长篇分析文本）。
     3. 上下文从70KB缩减为不到10KB，大幅降低模型的读取延迟(TTFT)，整体分析降至 3-5 秒！
 
     Args:
         png_bytes: JPEG 格式的截图字节数据
         manual_champion: 用户手动指定的英雄名（纠错用）
+        hextech_history: 已选过的海克斯符文列表
     """
     try:
         from lang import PROMPTS
         prompt = ANALYSIS_PROMPT
         
+        # 根据实时状态增强 Prompt
+        from lcu_client import get_live_player_status
+        live_status = get_live_player_status()
+        if live_status:
+            prompt = live_status + "\n" + prompt
+            log.info("[Gemini] 已注入实时游戏数据 (InProgress)")
+
+        # 注入海克斯历史
+        if hextech_history:
+            history_str = "、".join(hextech_history)
+            prompt = f"📜【本局已选海克斯符文历史】: {history_str}\n" + prompt
+            log.info(f"[Gemini] 已注入海克斯历史 ({len(hextech_history)}个)")
+
         # 用户手动纠错覆盖
         if manual_champion:
             override_msg = f"⚠️ 玩家已手动强制指定本局使用英雄为：【{manual_champion}】。请直接以该英雄作为你的‘我方英雄’并忽略你在截图中的误判！\n\n"
             prompt = override_msg + prompt
+
             log.info(f"[Gemini] 用户手动指定英雄: {manual_champion}")
+
         
         # 极速数据注入（只有不到10KB）
         if APEXLOL_ENABLED:
@@ -210,18 +240,22 @@ def analyze_hextech_choice(png_bytes: bytes, global_context: str,
 
 
 def update_global_strategy(current_strategy: str, hextech_history: list[str],
-                           latest_hextech: str, timeout: float = 5.0) -> str | None:
+                           latest_hextech: str, timeout: float = 15.0) -> str | None:
+
     """后台更新全局攻略。"""
     try:
         from lang import STRATEGY_UPDATE_PROMPTS
         import concurrent.futures
-        log.info(f"[Gemini] 后台更新全局攻略（已选: {latest_hextech}）...")
-        history_str = "、".join(hextech_history) if hextech_history else "无"
-        prompt = STRATEGY_UPDATE_PROMPTS.get(LANGUAGE, STRATEGY_UPDATE_PROMPTS["zh"]).format(
+        from lcu_client import get_live_player_status
+        live_status = get_live_player_status()
+        live_info = live_status + "\n" if live_status else ""
+        
+        prompt = live_info + STRATEGY_UPDATE_PROMPTS.get(LANGUAGE, STRATEGY_UPDATE_PROMPTS["zh"]).format(
             current_strategy=current_strategy,
             hextech_history=history_str,
             latest_hextech=latest_hextech,
         )
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(
                 _call_with_retry,
