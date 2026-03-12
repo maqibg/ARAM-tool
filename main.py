@@ -330,8 +330,35 @@ class App:
         global _is_analyzing
         if _is_analyzing:
             return
-        _is_analyzing = True
+            
+        # 1. 检查当前游戏阶段 (v1.7.0 分流逻辑)
+        from lcu_client import get_gameflow_phase
+        current_phase = get_gameflow_phase()
+        log.info(f"[UI] 分析按钮触发，当前阶段: {current_phase}")
+        
+        # 如果是 ChampSelect 或之前，或者虽然是 InProgress 但用户之前手动锁定了英雄且我们只想看英雄建议
+        # 核心逻辑：加载阶段（GameStart/LoadingScreen）不应截图，因为 LCU 暗中处理了
+        # 我们这里只在 InProgress 阶段保留截图分析逻辑
+        if current_phase not in ["InProgress"]:
+            # 非对局中：执行“极速前瞻”逻辑 (文字分析)
+            # 优先使用锁定的英雄，或者 LCU 当前选中的英雄
+            target = manual_champion or self._locked_champion
+            if not target:
+                from lcu_client import get_champ_select_info
+                info = get_champ_select_info()
+                if info and info.get("my_champion"):
+                    target = info["my_champion"]
+            
+            if target:
+                log.info(f"[UI] 非对局中阶段，执行极速前瞻: {target}")
+                self._run_quick_guide(target)
+                return
+            else:
+                self.status_label.configure(text="❌ 未检测到英雄，请先锁定英雄或输入英雄名。")
+                return
 
+        # 2. 如果是 InProgress 阶段，则执行“截图全量分析” (Tab 战绩表分析)
+        _is_analyzing = True
         self.btn_analyze.configure(text=T("btn_analyzing"), state=tk.DISABLED)
         self.status_label.configure(text=T("status_analyzing"))
         self.root.update()

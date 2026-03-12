@@ -18,6 +18,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 _champion_names: dict[int, str] = {}
 # 英雄 英文ID(如'Tristana') → 中文名映射缓存
 _champion_id_to_cn: dict[str, str] = {}
+# 符文/海克斯 ID -> 名称映射
+_perk_metadata: dict[int, str] = {}
 
 
 
@@ -281,10 +283,31 @@ def get_live_game_data() -> dict | None:
     return None
 
 
+def get_perk_metadata() -> dict[int, str]:
+    """获取所有符文/海克斯的名字映射表。"""
+    global _perk_metadata
+    if _perk_metadata:
+        return _perk_metadata
+
+    conn = _get_connection()
+    if not conn:
+        return {}
+    port, token = conn
+    
+    # 获取所有的符文数据
+    perks = _lcu_request(port, token, "/lol-perks/v1/perks")
+    if perks and isinstance(perks, list):
+        for p in perks:
+            pid = p.get("id")
+            name = p.get("name")
+            if pid and name:
+                _perk_metadata[pid] = name
+        print(f"[LCU] 已加载 {len(_perk_metadata)} 个符文/海克斯元数据")
+    return _perk_metadata
+
+
 def get_live_player_status() -> str | None:
-    """
-    获取游戏中玩家的实时装备和金币信息，用于注入 Prompt。
-    """
+    """获取游戏中玩家的实时装备、金币和已选海克斯信息。"""
     data = get_live_game_data()
     if not data:
         return None
@@ -292,7 +315,7 @@ def get_live_player_status() -> str | None:
     active_player = data.get("activePlayer", {})
     all_players = data.get("allPlayers", [])
     
-    # 找到当前玩家在 allPlayers 列表中的详细信息（为了拿英雄名）
+    # 找到当前玩家
     summoner_name = active_player.get("summonerName")
     me = next((p for p in all_players if p.get("summonerName") == summoner_name), None)
     
@@ -301,19 +324,46 @@ def get_live_player_status() -> str | None:
 
     champ_name_en = me.get("championName")
     _load_champion_names()
-    # 优先从映射表找中文名，找不到则用原名
     cn_name = _champion_id_to_cn.get(champ_name_en, champ_name_en)
 
     items = [i.get("displayName") for i in me.get("items", [])]
     gold = active_player.get("currentGold", 0)
 
+    # 获取已选的符文 (包含海克斯)
+    perk_md = get_perk_metadata()
+    actual_runes = []
     
+    def flatten_perks(p_obj):
+        ids = []
+        if isinstance(p_obj, dict):
+            for v in p_obj.values():
+                if isinstance(v, (int, float)):
+                    ids.append(int(v))
+                elif isinstance(v, dict):
+                    ids.extend(flatten_perks(v))
+        elif isinstance(p_obj, list):
+            for item in p_obj:
+                ids.extend(flatten_perks(item))
+        return ids
+
+    all_perk_ids = flatten_perks(me.get("runes", {}))
+    for pid in all_perk_ids:
+        pname = perk_md.get(pid)
+        if pname:
+            actual_runes.append(pname)
+    
+    # 去重
+    actual_runes = list(set(actual_runes))
+
     status = [
-        f"🚀【实时游戏状态 (InProgress)】",
+        f"🚀【实时对局状态 - 绝对真实数据】",
         f"- 我的英雄: {cn_name}",
-        f"- 当前持有金币: {int(gold)}",
-        f"- 已购装备: {', '.join(items) if items else '无'}"
+        f"- 当前金币: {int(gold)}",
+        f"- 已购装备: {', '.join(items) if items else '无'}",
+        f"- 探测到的已选海克斯/符文: {', '.join(actual_runes) if actual_runes else '未探测到'}"
     ]
+    
+    return "\n".join(status)
 
 
 
@@ -376,8 +426,14 @@ def get_live_team_rosters() -> dict | None:
         f"⭐【我选择的英雄】: {my_champion}（请重点分析我的出装、海克斯和打法）",
         f"【自动捕获: 我方阵容】: {', '.join(my_team)}",
         f"【自动捕获: 敌方阵容】: {', '.join(their_team)}",
-        "（以上阵容数据已由客户端完全捕获。敌方阵容无视野区已点亮，请直接以该名单进行终极推演）"
     ]
+    
+    # 注入实时状态 (含实际海克斯)
+    live_status = get_live_player_status()
+    if live_status:
+        context.append(live_status)
+        
+    context.append("（以上阵容与状态数据已由客户端完全捕获。敌方阵容无视野区已点亮，请直接以该名单进行终极推演）")
     
     return {
         "my_team": my_team,
