@@ -32,6 +32,16 @@ _cache = None
 _name_to_id = None
 
 
+def _fix_mojibake(s: str) -> str:
+    """尝试修复双重编码的乱码字符串（如 ä¸\\x8dç¥¥ä¹\\x8bå\\x88\\x83 -> 不祥之刃）"""
+    if not isinstance(s, str):
+        return s
+    try:
+        return s.encode('latin1').decode('utf-8')
+    except Exception:
+        return s
+
+
 def _build_name_map(data: dict) -> dict:
     """从缓存数据构建 名称 -> ID 的映射表。"""
     name_map = {}
@@ -39,7 +49,7 @@ def _build_name_map(data: dict) -> dict:
     # 从 champion_list 构建
     for champ in data.get("champion_list", []):
         champ_id = champ["id"]
-        cn_title = champ.get("cn_title", "")
+        cn_title = _fix_mojibake(champ.get("cn_title", ""))
 
         # 中文标题 -> ID（如 "不祥之刃" -> "Katarina"）
         if cn_title:
@@ -50,11 +60,11 @@ def _build_name_map(data: dict) -> dict:
 
     # 从 champions 数据构建
     for champ_id, info in data.get("champions", {}).items():
-        cn_title = info.get("cn_title", "")
+        cn_title = _fix_mojibake(info.get("cn_title", ""))
         if cn_title:
             name_map[cn_title] = champ_id
             
-        cn_name = info.get("cn_name", "")
+        cn_name = _fix_mojibake(info.get("cn_name", ""))
         if cn_name:
             name_map[cn_name] = champ_id
 
@@ -252,7 +262,7 @@ def extract_top_synergies(champion_name: str, top_n: int = 3) -> str:
     if not champ_data or not champ_data.get("synergies"):
         return ""
     
-    cn_title = champ_data.get("cn_title", champ_id)
+    cn_title = _fix_mojibake(champ_data.get("cn_title", champ_id))
     synergies = champ_data["synergies"]
     
     # 按评分排序（S级 > A级 > B级）
@@ -272,11 +282,11 @@ def extract_top_synergies(champion_name: str, top_n: int = 3) -> str:
     
     for i, syn in enumerate(top_syns):
         label = tier_labels[i] if i < len(tier_labels) else f"方案{i+1}"
-        hex_names = syn.get("hex_names", [])
-        rating = syn.get("rating", "")
-        tiers = " / ".join(syn.get("hex_tiers", []))
-        tag = syn.get("tag", "")
-        analysis = syn.get("analysis", "")
+        hex_names = [_fix_mojibake(h) for h in syn.get("hex_names", [])]
+        rating = _fix_mojibake(syn.get("rating", ""))
+        tiers = " / ".join([_fix_mojibake(t) for t in syn.get("hex_tiers", [])])
+        tag = _fix_mojibake(syn.get("tag", ""))
+        analysis = _fix_mojibake(syn.get("analysis", ""))
         
         hex_display = " + ".join(hex_names) if hex_names else "未知"
         
