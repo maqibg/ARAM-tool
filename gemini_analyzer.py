@@ -246,7 +246,14 @@ def analyze_champion_quick_guide(champion_name: str) -> str:
             label="极速前瞻",
         )
         log.info(f"[Gemini] 极速前瞻分析完成 ({time.time()-t_start:.1f}s)")
-        return response.text
+        
+        # 100% 防御幻觉：由代码直接拼接，绝不指望 AI "原样复述"
+        final_output = ""
+        if prefilled_augments:
+            final_output += prefilled_augments + "\n\n---\n\n"
+        final_output += response.text
+        
+        return final_output
 
     except Exception as e:
         error_msg = f"❌ 极速前瞻失败: {str(e)}"

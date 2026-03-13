@@ -435,41 +435,39 @@ Keep it concise, same format as the original strategy.
 # ==================== 极速前瞻攻略 Prompt ====================
 QUICK_GUIDE_PROMPTS = {
     "zh": """你是一位英雄联盟 **海克斯大乱斗** 模式的资深玩家和分析师。
-玩家指定了英雄：【{champion_name}】。
+这是关于英雄【{champion_name}】的极速前瞻攻略。
 
-## 🚀 极速前瞻：{champion_name}
-
-以下海克斯符文方案已由数据系统从 apexlol.info 高胜率数据库中直接提取，**你不需要修改这些符文方案，直接原样输出即可**：
-
+【已知情报】
+以下是该英雄从高胜率数据库中提取出的核心海克斯符文方案。**请作为你推荐出装和玩法的参考上下文**：
 {prefilled_augments}
 
-你只需要补充以下内容：
+【你的任务】
+直接输出以下 3 个模块，**不要输出海克斯符文部分**（系统已经自动补充了），也不要输出任何寒暄和前言：
 
 ### 🛡️ 核心出装推荐（6件必填）
-要求严格符合该英雄主流定位和伤害类型（AD英雄出AD装，AP英雄出AP装，坦克出肉装）。
+要求严格符合该英雄主流定位和上述海克斯符文的特质（AD英雄出AD装，AP英雄出AP装，坦克出肉装）。
 1. **装备完整名** — 出装理由
 2. **装备完整名** — 出装理由
 ...
 6. **装备完整名** — 出装理由
 
 ### ✨ 召唤师技能推荐
-推荐 2 个最适合该英雄大乱斗模式的召唤师技能（如 闪现 + 疾跑/雪球/虚弱），并简要说明理由。
+推荐 2 个最适合大乱斗的召唤师技能（如 闪现 + 疾跑/雪球/虚弱），并简要说明理由。
 
 ### 💡 核心玩法一句话总结
 """,
-    "en": """You are a League of Legends Hextech Havoc expert.
-Champion: [{champion_name}].
+    "en": """You are a League of Legends Hextech Havoc expert analyst.
+This is a quick preview for champion: [{champion_name}].
 
-## 🚀 Quick Preview: {champion_name}
-
-The following hextech augment builds have been extracted directly from the apexlol.info high-winrate database. **Output them as-is, do NOT modify these augment builds**:
-
+[Context]
+The following hextech augment builds are popular for this champion. **Use this as context for your item and playstyle recommendations**:
 {prefilled_augments}
 
-You only need to provide these additional sections:
+[Your Task]
+Output ONLY the following 3 sections. **Do NOT output hextech augments** (the system handles that):
 
 ### 🛡️ Core Build (6 items)
-Give 6 core items with brief reasons matching the champion's role.
+Give 6 core items with brief reasons matching the champion's role and the augments above.
 
 ### ✨ Summoner Spells
 Recommend 2 optimal summoner spells for ARAM and briefly explain why.
