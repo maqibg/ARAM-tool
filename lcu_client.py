@@ -495,8 +495,13 @@ def get_loading_screen_rosters(override_my_champion: str = None) -> dict | None:
         cname = get_champion_name(p.get("championId", 0))
         their_team_players.append(cname)
         
-    # 如果用户手动指定了英雄，强行覆盖 LCU 获取的判断兜底
-    if override_my_champion:
+    # 优先级逻辑：
+    # 1. 如果 LCU 识别到了我的英雄且不是“未知英雄”，则以 LCU 为准（自动纠正用户手动输入的错别字/别名）
+    # 2. 如果 LCU 没识别到（未知英雄），或者 LCU 没联通，才使用手动指定的英雄作为兜底
+    if my_champion != "未知英雄" and override_my_champion and my_champion != override_my_champion:
+        log.info(f"[LCU] 🔄 自动纠正手动指定的英雄名: {override_my_champion} -> {my_champion}")
+    
+    if my_champion == "未知英雄" and override_my_champion:
         my_champion = override_my_champion
         
     context = [

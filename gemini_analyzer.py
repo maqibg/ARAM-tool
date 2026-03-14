@@ -171,11 +171,21 @@ def analyze_screenshot(png_bytes: bytes, manual_champion: str = None,
             log.info(f"[Gemini] 已注入海克斯历史 ({len(hextech_history)}个)")
 
         # 用户手动纠错或命令行直接起手覆盖
+        prefilled_augments_result = ""
         if manual_champion:
-            override_msg = f"⚠️ 核心最高指令：玩家已在此刻手动指令本局强制使用英雄：【{manual_champion}】。\n因为是手动指令起手，你**必须完全忽略**前面关于“必须判断截图是否为大乱斗/加载界面”的拦截规则！哪怕截图只显示了纯桌面聊天软件，你也**绝对不许拦截报错**，必须假装你的‘我方英雄’就是【{manual_champion}】，并基于此直接输出完整的三套海克斯与出装攻略！\n\n"
+            if APEXLOL_ENABLED:
+                from apexlol_data import extract_top_synergies
+                prefilled_augments_result = extract_top_synergies(manual_champion)
+                if prefilled_augments_result:
+                    log.info(f"[ApexLol] 截图阶段已附加 {manual_champion} 的海克斯数据 ({len(prefilled_augments_result)} 字符)")
+                    
+            override_msg = f"⚠️ 核心最高指令：玩家已在此刻手动指令本局强制使用英雄：【{manual_champion}】。\n因为是手动指令起手，你**必须完全忽略**前面关于“必须判断截图是否为大乱斗/加载界面”的拦截规则！哪怕截图只显示了纯桌面聊天软件，你也**绝对不许拦截报错**，必须假装你的‘我方英雄’就是【{manual_champion}】，并基于此直接输出完整的三套海克斯与出装攻略！\n"
+            if prefilled_augments_result:
+                override_msg += f"\n【已知情报 - 必选海克斯符文方案】\n{prefilled_augments_result}\n请不要再生造海克斯。\n"
+            else:
+                override_msg += "\n(无数据，请基于知识推荐3套最强海克斯符文方案)\n"
+                
             prompt = override_msg + prompt
-
-
             log.info(f"[Gemini] 用户手动指定英雄: {manual_champion}")
 
         
@@ -208,7 +218,12 @@ def analyze_screenshot(png_bytes: bytes, manual_champion: str = None,
         if "❌" in result and "加载界面" in result and not manual_champion:
             log.info("[Gemini] 快速拒绝：非加载界面")
             
-        return result
+        final_output = ""
+        if prefilled_augments_result:
+            final_output += prefilled_augments_result + "\n\n---\n\n"
+        final_output += result
+            
+        return final_output
 
     except Exception as e:
         error_msg = f"❌ Gemini API 调用失败: {str(e)}"
@@ -281,7 +296,7 @@ def analyze_lcu_rosters(rosters: dict, hextech_history: list[str] = None) -> str
         prompt = LCU_FULL_STRATEGY_PROMPTS.get(LANGUAGE, LCU_FULL_STRATEGY_PROMPTS["zh"]).format(
             my_champion=my_champion,
             lcu_rosters=lcu_rosters,
-            prefilled_augments=prefilled_augments if prefilled_augments else "（暂无数据）"
+            prefilled_augments=prefilled_augments if prefilled_augments else "（无数据，请基于知识推荐3套最强海克斯符文方案）"
         )
         
         # 注入海克斯历史
