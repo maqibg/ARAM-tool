@@ -453,8 +453,9 @@ QUICK_GUIDE_PROMPTS = {
 ...
 6. **装备完整名** — 出装理由
 
-### ✨ 召唤师技能
-推荐 2 个最适合**大乱斗**的召唤师技能（大乱斗可选：闪现/雪球/疾跑/虚弱/治疗/屏障/净化/引燃，**没有传送**），简说理由。
+### ⚡ 技能加点与召唤师技能
+- **加点建议**: 主X副Y，简解原因。
+- **召唤师技能**: 推荐 2 个最适合**大乱斗**的技能（可选：闪现/雪球/疾跑/虚弱/净化/屏障/治疗/引燃），简说理由。
 
 ### 💡 大乱斗核心打法
 一句话总结该英雄在大乱斗中的定位和关键操作。
@@ -472,8 +473,9 @@ Output ONLY the following 3 sections. **Do NOT output hextech augments** (the sy
 ### 🛡️ Core Build (6 items)
 Give 6 core items with brief reasons matching the champion's role and the augments above.
 
-### ✨ Summoner Spells
-Recommend 2 optimal summoner spells for ARAM and briefly explain why.
+### ⚡ Skills & Summoner Spells
+- **Skill Priority**: Max X then Y, why.
+- **Summoner Spells**: Recommend 2 optimal spells for ARAM and briefly explain why.
 
 ### 💡 Playstyle Summary
 (One sentence summary)
