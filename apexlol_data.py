@@ -19,9 +19,10 @@ CHAMPION_ALIASES = {
     "阿尼维亚": "Anivia", "安妮": "Annie", "阿菲利奥斯": "Aphelios", "艾瑞莉娅": "Irelia",
     "艾希": "Ashe", "奥恩": "Ornn", "奥拉夫": "Olaf", "奥瑞利安索尔": "AurelionSol",
     "奥莉安娜": "Orianna", "阿兹尔": "Azir", "艾克": "Ekko", "安贝萨": "Ambessa",
+    "艾翁": "Ivern", "阿狸": "Ahri", "阿卡丽": "Akali",
     # ===== B =====
     "巴德": "Bard", "贝尔维斯": "Belveth", "布兰德": "Brand", "布隆": "Braum",
-    "布里茨": "Blitzcrank",
+    "布里茨": "Blitzcrank", "波比": "Poppy", "豹女": "Nidalee",
     # ===== C =====
     "才藏": "Hwei", "铸星龙王": "AurelionSol",
     # ===== D =====
@@ -42,15 +43,15 @@ CHAMPION_ALIASES = {
     # ===== I/J =====
     "吉格斯": "Ziggs", "基兰": "Zilean", "贾克斯": "Jax", "嘉文四世": "JarvanIV",
     "锦鲤": "Nami", "金克丝": "Jinx", "金克斯": "Jinx", "杰斯": "Jayce", "劫": "Zed",
-    "疾风剑豪": "Yasuo", "嘉文": "JarvanIV",
-    "加里奥": "Galio", "佐伊": "Zoe",
+    "疾风剑豪": "Yasuo", "嘉文": "JarvanIV", "剑姬": "Fiora", "剑魔": "Aatrox",
+    "加里奥": "Galio", "佐伊": "Zoe", "橘子": "Gangplank",
     # ===== K =====
     "卡尔玛": "Karma", "卡尔萨斯": "Karthus", "卡莉斯塔": "Kalista", "卡密尔": "Camille",
-    "卡萨丁": "Kassadin", "卡莎": "Kaisa", "卡兹克": "Khazix", "卡特琳娜": "Katarina",
+    "卡萨丁": "Kassadin", "卡莎": "Kaisa", "卡沙": "Kaisa", "卡兹克": "Khazix", "卡特琳娜": "Katarina",
     "卡特": "Katarina", "卡西奥佩娅": "Cassiopeia", "卡蜜尔": "Camille",
     "凯南": "Kennen", "凯尔": "Kayle", "凯隐": "Kayn", "凯特琳": "Caitlyn",
     "科加斯": "Chogath", "克烈": "Kled", "奎因": "Quinn", "克格莫": "KogMaw",
-    "寇格": "KogMaw", "孔": "Wukong",
+    "寇格": "KogMaw", "孔": "Wukong", "凯特灵": "Caitlyn",
     # ===== L =====
     "拉克丝": "Lux", "拉莫斯": "Rammus", "兰博": "Rumble", "乐芙兰": "Leblanc",
     "雷克塞": "RekSai", "雷克顿": "Renekton", "雷恩加尔": "Rengar", "李青": "LeeSin",
@@ -61,16 +62,18 @@ CHAMPION_ALIASES = {
     "玛尔扎哈": "Malzahar", "冒险家": "Ezreal", "美杜莎": "Cassiopeia",
     "梦魇": "Nocturne", "蒙多": "DrMundo", "蒙多医生": "DrMundo",
     "魔腾": "Mordekaiser", "莫甘娜": "Morgana", "莫德凯撒": "Mordekaiser",
-    "墨菲特": "Malphite", "沐恩": "Milio",
+    "墨菲特": "Malphite", "沐恩": "Milio", "马尔扎哈": "Malzahar", "男枪": "Graves",
+    "猫咪": "Yuumi", "木木": "Amumu",
     # ===== N =====
     "纳尔": "Gnar", "内瑟斯": "Nasus", "娜美": "Nami", "奈德丽": "Nidalee",
     "妮蔻": "Neeko", "诺克萨斯之手": "Darius", "诺手": "Darius",
-    "努努": "Nunu", "女枪": "MissFortune", "女刀": "Katarina",
+    "努努": "Nunu", "女枪": "MissFortune", "女刀": "Katarina", "奶妈": "Soraka",
+    "鸟人": "Quinn",
     # ===== O =====
     "欧拉夫": "Olaf",
     # ===== P =====
     "派克": "Pyke", "潘森": "Pantheon", "泡芙": "Lulu", "皮城女警": "Caitlyn",
-    "琴女": "Sona",
+    "琴女": "Sona", "爬行者": "KogMaw", "螃蟹": "Urgot",
     # ===== Q =====
     "奇亚娜": "Qiyana", "琪亚娜": "Qiyana", "千珏": "Kindred", "青钢影": "Camille",
     "球女": "Orianna", "曲奇": "Zac",
@@ -83,7 +86,8 @@ CHAMPION_ALIASES = {
     "厄运小姐": "MissFortune", "莎弥拉": "Samira",
     "慎": "Shen", "石头人": "Malphite", "狮子狗": "Rengar",
     "斯卡纳": "Skarner", "斯维因": "Swain", "索拉卡": "Soraka", "孙悟空": "MonkeyKing",
-    "松果": "Ivern", "索恩": "Sion",
+    "松果": "Ivern", "索恩": "Sion", "日女": "Leona", "曙光": "Leona", "死歌": "Karthus",
+    "星妈": "Soraka", "瞎子": "LeeSin", "瞎": "LeeSin",
     "蛇女": "Cassiopeia", "深海泰坦": "Nautilus",
     "时光老人": "Zilean", "时光": "Zilean",
     "机器人": "Blitzcrank", "稻草人": "Fiddlesticks",
@@ -105,9 +109,9 @@ CHAMPION_ALIASES = {
     # ===== X =====
     "霞": "Xayah", "希尔科": "Silco", "希维尔": "Sivir", "辛吉德": "Singed",
     "辛德拉": "Syndra", "锤石": "Thresh", "希瓦娜": "Shyvana",
-    "许尔马": "Xayah", "小鱼人": "Fizz", "小炮": "Tristana",
     "瑟庄妮": "Sejuani", "虚空之女": "Kaisa",
-    "猩红收割者": "Vladimir", "兴奋": "Jinx",
+    "猩红收割者": "Vladimir", "兴奋": "Jinx", "压缩": "Yasuo", "吸血鬼": "Vladimir",
+    "小鱼": "Fizz", "小法": "Veigar", "小鱼人": "Fizz", "小炮": "Tristana",
     # ===== Y =====
     "亚索": "Yasuo", "亚托克斯": "Aatrox", "伊芙琳": "Evelynn", "伊泽瑞尔": "Ezreal",
     "易": "MasterYi", "易大师": "MasterYi", "剑圣": "MasterYi",
