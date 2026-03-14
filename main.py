@@ -223,6 +223,7 @@ class App:
             return
         
         _is_analyzing = True
+        self._detected_champion = rosters.get("my_champion") # 记录当前对局识别到的英雄
         self.status_label.configure(text="全自动 LCU 数据分析中...")
         
         # 弹窗提示
@@ -519,8 +520,13 @@ class App:
 
             t1 = _time.time()
             log.info("[Gemini] ⚡ 海克斯分析中...")
+            
+            # 优先使用手动锁定的，否则使用 LCU 确认识别的英雄名 (2026-03-14 增强识别)
+            curr_champ = self._locked_champion or getattr(self, "_detected_champion", None)
+            
             result = analyze_hextech_choice(
-                png_bytes, _global_strategy, _hextech_history
+                png_bytes, _global_strategy, _hextech_history,
+                champion_name=curr_champ
             )
             elapsed = _time.time() - t1
             log.info(f"[Gemini] ⚡ 海克斯分析完成 ({elapsed:.1f}s)")
@@ -606,7 +612,7 @@ class App:
         global _global_strategy
         try:
             updated = update_global_strategy(
-                _global_strategy, _hextech_history, latest_hextech, timeout=5.0
+                _global_strategy, _hextech_history, latest_hextech, timeout=15.0
             )
             if updated:
                 _global_strategy = updated

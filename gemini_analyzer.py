@@ -343,13 +343,23 @@ def analyze_lcu_rosters(rosters: dict, hextech_history: list[str] = None) -> str
 
 
 def analyze_hextech_choice(png_bytes: bytes, global_context: str,
-                           hextech_history: list[str]) -> str:
+                           hextech_history: list[str], champion_name: str = None) -> str:
     """海克斯选择分析：截图中的3个选项 → 推荐选哪个。"""
     try:
         from lang import HEXTECH_PROMPTS
-        log.info("[Gemini] 海克斯选择分析...")
+        log.info(f"[Gemini] 海克斯选择分析 (英雄: {champion_name})...")
+        
         context_summary = global_context[:800] if global_context else "尚无全局攻略"
         history_str = "、".join(hextech_history) if hextech_history else "无"
+        
+        # 注入该英雄的高胜率符文列表辅助 AI 识别 (2026-03-14 优化)
+        prefilled_augments = ""
+        if champion_name and APEXLOL_ENABLED:
+            from apexlol_data import extract_top_synergies
+            prefilled_augments = extract_top_synergies(champion_name)
+            if prefilled_augments:
+                log.info(f"[海克斯] 为 {champion_name} 注入高胜率“对照表”，增强识别能力")
+
         prompt = HEXTECH_PROMPTS.get(LANGUAGE, HEXTECH_PROMPTS["zh"]).format(
             global_context=context_summary,
             hextech_history=history_str,
@@ -358,9 +368,15 @@ def analyze_hextech_choice(png_bytes: bytes, global_context: str,
         # 极速模式：不注入任何额外上下文，只靠截图+全局摘要+历史
         # 这样 Prompt 体积 ~2KB，确保 TTFT 最低，5秒内出结果
         
+        api_contents = [types.Part.from_bytes(data=png_bytes, mime_type="image/jpeg")]
+        if prefilled_augments:
+            # 物理注入对照表
+            api_contents.append(f"🚀【实时建议背景】该英雄的高胜率海克斯名单如下：\n{prefilled_augments}\n\n⚠️ 如果截图中的 3 个选项有命中以上名单的，请给予最高优先级的推荐权重！")
+        api_contents.append(prompt)
+
         response = _call_with_retry(
             model=GEMINI_MODEL,
-            contents=[types.Part.from_bytes(data=png_bytes, mime_type="image/jpeg"), prompt],
+            contents=api_contents,
             config=types.GenerateContentConfig(temperature=0.2),
             label="海克斯",
         )
