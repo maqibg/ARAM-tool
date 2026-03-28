@@ -464,3 +464,182 @@ def get_cache_info(cache_dir: str) -> dict:
         }
     except Exception:
         return {"exists": False}
+
+
+# ==================== OCR 本地海克斯快速推荐 ====================
+_ocr_engine = None
+
+
+def _get_ocr():
+    """懒加载 OCR 引擎（首次约1s，后续0ms）。"""
+    global _ocr_engine
+    if _ocr_engine is None:
+        from rapidocr_onnxruntime import RapidOCR
+        _ocr_engine = RapidOCR()
+    return _ocr_engine
+
+
+def _fuzzy_match_augment(ocr_text: str, valid_names: list[str]) -> str | None:
+    """将 OCR 识别的文本模糊匹配到标准海克斯名。"""
+    ocr_text = ocr_text.strip()
+    if not ocr_text or len(ocr_text) < 2:
+        return None
+    # 精确匹配
+    for name in valid_names:
+        if ocr_text == name:
+            return name
+    # 包含匹配（OCR可能多/少一个字）
+    for name in valid_names:
+        if name in ocr_text or ocr_text in name:
+            return name
+    return None
+
+
+def ocr_hextech_recommend(image_path: str, champion_name: str,
+                          hextech_history: list[str] = None) -> str | None:
+    """纯本地 OCR + ApexLol 查表的海克斯推荐（无网络，<2s）。
+
+    Returns:
+        格式化的推荐文本，如果 OCR 失败或无法匹配则返回 None（交给 AI 兜底）
+    """
+    global _cache
+    if not _cache:
+        return None
+
+    champ_id = resolve_champion_id(champion_name)
+    if not champ_id:
+        return None
+
+    champ_data = _cache.get("champions", {}).get(champ_id)
+    if not champ_data or not champ_data.get("synergies"):
+        return None
+
+    # 1. 构建全局海克斯名单（所有英雄的联动数据中的符文名）
+    all_augment_names = []
+    for cid, cdata in _cache.get("champions", {}).items():
+        for syn in cdata.get("synergies", []):
+            for hname in syn.get("hex_names", []):
+                fixed = _fix_mojibake(hname)
+                if fixed and fixed not in all_augment_names:
+                    all_augment_names.append(fixed)
+
+    if not all_augment_names:
+        return None
+
+    # 2. OCR 识别截图中的文字
+    try:
+        ocr = _get_ocr()
+        result, _ = ocr(image_path)
+        if not result:
+            log.warning("[OCR] 未识别到任何文本")
+            return None
+    except Exception as e:
+        log.error(f"[OCR] 引擎异常: {e}")
+        return None
+
+    # 3. 从 OCR 结果中匹配海克斯名（只取高置信度的短文本=标题）
+    matched_augments = []
+    for bbox, text, confidence in result:
+        if confidence < 0.7 or len(text) > 8:  # 符文名通常2-6个中文字
+            continue
+        matched = _fuzzy_match_augment(text, all_augment_names)
+        if matched and matched not in matched_augments:
+            matched_augments.append(matched)
+
+    if not matched_augments:
+        log.warning(f"[OCR] 未能匹配到任何已知海克斯名。OCR结果: {[r[1] for r in result if r[2]>0.7]}")
+        return None
+
+    log.info(f"[OCR] ✅ 识别到 {len(matched_augments)} 个海克斯: {matched_augments}")
+
+    # 4. 对匹配到的海克斯，从 ApexLol 数据中查评级并排序
+    cn_title = _fix_mojibake(champ_data.get("cn_title", champ_id))
+    history_str = "、".join(hextech_history) if hextech_history else "无"
+
+    # 为每个识别到的符文查找相关方案（优先本英雄，兜底跨英雄）
+    augment_info = []
+    for aug_name in matched_augments:
+        best_syn = None
+        best_rating = 99
+        is_my_champ = False
+        # 先在本英雄里找
+        for syn in champ_data["synergies"]:
+            hex_names_fixed = [_fix_mojibake(h) for h in syn.get("hex_names", [])]
+            if aug_name in hex_names_fixed:
+                rating_val = _parse_rating_key(syn.get("rating", ""))
+                if rating_val < best_rating:
+                    best_rating = rating_val
+                    best_syn = syn
+                    is_my_champ = True
+        # 本英雄没有，全局搜索（取最佳评级作为参考）
+        if not best_syn:
+            for cid, cdata in _cache.get("champions", {}).items():
+                for syn in cdata.get("synergies", []):
+                    hex_names_fixed = [_fix_mojibake(h) for h in syn.get("hex_names", [])]
+                    if aug_name in hex_names_fixed:
+                        rating_val = _parse_rating_key(syn.get("rating", ""))
+                        if rating_val < best_rating:
+                            best_rating = rating_val
+                            best_syn = syn
+        if best_syn:
+            augment_info.append((aug_name, best_syn, best_rating, is_my_champ))
+
+    # 按评级排序（越小越强），本英雄数据优先
+    augment_info.sort(key=lambda x: (0 if x[3] else 1, x[2]))
+
+    # 5. 格式化输出
+    lines = [f"## ⚡ 海克斯推荐（{cn_title} - 本地极速版）"]
+    lines.append(f"已选历史: {history_str}")
+    lines.append("")
+
+    if not augment_info:
+        lines.append("⚠️ 识别到的海克斯不在 ApexLol 数据库中，建议按直觉选择")
+        return "\n".join(lines)
+
+    # 推荐第一个（评级最高的）
+    top_name, top_syn, _, top_is_mine = augment_info[0]
+    raw_rating = _fix_mojibake(top_syn.get("rating", "")).upper().replace("级", "").strip()
+    tag = _fix_mojibake(top_syn.get("tag", ""))
+    is_trap = "陷阱" in tag
+    analysis = _fix_mojibake(top_syn.get("analysis", ""))
+    rec_items = [_fix_mojibake(it) for it in top_syn.get("recommended_items", [])]
+    hex_combo = " + ".join([_fix_mojibake(h) for h in top_syn.get("hex_names", [])])
+
+    if is_trap:
+        lines.append(f"### ❌ 警告：【{top_name}】是陷阱！避开！")
+        lines.append(f"- 评级: {raw_rating}级 | 标签: ⚠️陷阱")
+        if analysis:
+            lines.append(f"- 原因: {analysis}")
+        # 推荐非陷阱的
+        non_trap = [x for x in augment_info if "陷阱" not in _fix_mojibake(x[1].get("tag", ""))]
+        if non_trap:
+            rec_name, rec_syn, _, _ = non_trap[0]
+            rec_rating = _fix_mojibake(rec_syn.get("rating", "")).upper().replace("级", "").strip()
+            rec_tag = _fix_mojibake(rec_syn.get("tag", ""))
+            rec_analysis = _fix_mojibake(rec_syn.get("analysis", ""))
+            lines.append(f"\n### 🏆 推荐选择：【{rec_name}】")
+            lines.append(f"- 评级: {rec_rating}级 | 标签: {rec_tag}")
+            if rec_analysis:
+                lines.append(f"- 解析: {rec_analysis}")
+    else:
+        lines.append(f"### 🏆 推荐选择：【{top_name}】← 选这个")
+        lines.append(f"- 评级: {raw_rating}级 | 标签: {tag}")
+        lines.append(f"- 所属组合: {hex_combo}")
+        if rec_items:
+            lines.append(f"- 搭配出装: {' → '.join(rec_items)}")
+        if analysis:
+            lines.append(f"- 解析: {analysis}")
+
+    # 列出其他选项
+    others = [x for x in augment_info if x is not augment_info[0]]
+    if is_trap and 'non_trap' in dir() and non_trap:
+        others = [x for x in others if x is not non_trap[0]]
+    if others:
+        lines.append("\n### 其他选项")
+        for name, syn, _, is_mine in others:
+            r = _fix_mojibake(syn.get("rating", "")).upper().replace("级", "").strip()
+            t = _fix_mojibake(syn.get("tag", ""))
+            trap_mark = " ⚠️陷阱" if "陷阱" in t else ""
+            lines.append(f"- {name}: {r}级{trap_mark} — {t}")
+
+    return "\n".join(lines)

@@ -443,18 +443,32 @@ class App:
             png_bytes, filepath = capture_hextech_cards()
             log.info(f"[截图裁切] ✅ {len(png_bytes)} bytes ({_time.time()-t0:.1f}s)")
 
-            t1 = _time.time()
-            log.info("[Gemini] ⚡ 海克斯分析中...")
-            
-            # 优先使用手动锁定的，否则使用 LCU 确认识别的英雄名 (2026-03-14 增强识别)
+            # 优先使用手动锁定的，否则使用 LCU 确认识别的英雄名
             curr_champ = self._locked_champion or getattr(self, "_detected_champion", None)
-            
-            result = analyze_hextech_choice(
-                png_bytes, _global_strategy, _hextech_history,
-                champion_name=curr_champ
-            )
-            elapsed = _time.time() - t1
-            log.info(f"[Gemini] ⚡ 海克斯分析完成 ({elapsed:.1f}s)")
+
+            # ===== 快速路径：本地 OCR + ApexLol 查表（<2s） =====
+            result = None
+            if curr_champ and filepath:
+                try:
+                    from apexlol_data import ocr_hextech_recommend
+                    log.info("[OCR] 尝试本地极速识别...")
+                    result = ocr_hextech_recommend(filepath, curr_champ, _hextech_history)
+                    if result:
+                        log.info(f"[OCR] ✅ 本地极速推荐完成 ({_time.time()-t0:.1f}s)")
+                except Exception as e:
+                    log.warning(f"[OCR] 本地识别异常，回退到 AI: {e}")
+                    result = None
+
+            # ===== 慢速路径：Gemini AI 视觉分析（兜底） =====
+            if not result:
+                t1 = _time.time()
+                log.info("[Gemini] ⚡ 海克斯分析中（AI 兜底）...")
+                result = analyze_hextech_choice(
+                    png_bytes, _global_strategy, _hextech_history,
+                    champion_name=curr_champ
+                )
+                elapsed = _time.time() - t1
+                log.info(f"[Gemini] ⚡ 海克斯分析完成 ({elapsed:.1f}s)")
 
             # 在主线程中显示结果
             self.root.after(0, lambda: self._show_hextech_result(result))
