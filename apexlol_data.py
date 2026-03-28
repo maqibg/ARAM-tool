@@ -158,16 +158,18 @@ _name_to_id = None
 
 
 def _fix_mojibake(s: str) -> str:
-    """尝试修复双重编码的乱码字符串"""
+    """尝试修复双重编码的乱码字符串。
+    
+    如果字符串是正常 UTF-8（如刚爬取的新数据），直接原样返回。
+    只有确实是 latin1→utf8 双重编码时才修复。
+    """
     if not isinstance(s, str):
         return s
     try:
+        # 只有能完整 encode 为 latin1 时，才说明是双重编码
         return s.encode('latin1').decode('utf-8')
-    except Exception:
-        pass
-    try:
-        return s.encode('latin1', errors='ignore').decode('utf-8', errors='ignore')
-    except Exception:
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        # encode('latin1') 失败 = 字符串已经是正常 UTF-8，直接返回
         return s
 
 
