@@ -495,6 +495,56 @@ def _fuzzy_match_augment(ocr_text: str, valid_names: list[str]) -> str | None:
     return None
 
 
+def ocr_hextech_names(image_path: str, champion_name: str = None) -> list[str] | None:
+    """OCR 识别截图中的海克斯符文名（仅读名，不做推荐）。
+
+    Returns:
+        匹配到的海克斯名列表，失败返回 None
+    """
+    global _cache
+    if not _cache:
+        return None
+
+    # 构建全局海克斯名单
+    all_augment_names = []
+    for cid, cdata in _cache.get("champions", {}).items():
+        for syn in cdata.get("synergies", []):
+            for hname in syn.get("hex_names", []):
+                fixed = _fix_mojibake(hname)
+                if fixed and fixed not in all_augment_names:
+                    all_augment_names.append(fixed)
+
+    if not all_augment_names:
+        return None
+
+    # OCR 识别
+    try:
+        ocr = _get_ocr()
+        result, _ = ocr(image_path)
+        if not result:
+            log.warning("[OCR] 未识别到任何文本")
+            return None
+    except Exception as e:
+        log.error(f"[OCR] 引擎异常: {e}")
+        return None
+
+    # 匹配海克斯名
+    matched = []
+    for bbox, text, confidence in result:
+        if confidence < 0.7 or len(text) > 8:
+            continue
+        name = _fuzzy_match_augment(text, all_augment_names)
+        if name and name not in matched:
+            matched.append(name)
+
+    if not matched:
+        log.warning(f"[OCR] 未匹配到已知海克斯名。OCR结果: {[r[1] for r in result if r[2]>0.7]}")
+        return None
+
+    log.info(f"[OCR] ✅ 识别到 {len(matched)} 个海克斯: {matched}")
+    return matched
+
+
 def ocr_hextech_recommend(image_path: str, champion_name: str,
                           hextech_history: list[str] = None) -> str | None:
     """纯本地 OCR + ApexLol 查表的海克斯推荐（无网络，<2s）。

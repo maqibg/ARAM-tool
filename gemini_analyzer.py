@@ -219,6 +219,47 @@ def analyze_hextech_choice(png_bytes: bytes, global_context: str,
         return f"❌ 海克斯分析失败: {str(e)}"
 
 
+def analyze_hextech_text(ocr_names: list[str], hextech_history: list[str],
+                         champion_name: str = None) -> str:
+    """纯文字海克斯分析：OCR 识别出的符文名 + ApexLol 数据 → AI 给建议（无截图，极速）。"""
+    try:
+        from lang import HEXTECH_PROMPTS
+        log.info(f"[Gemini] 纯文字海克斯分析 (英雄: {champion_name}, 选项: {ocr_names})...")
+
+        history_str = "、".join(hextech_history) if hextech_history else "无"
+
+        # 注入 ApexLol 数据
+        prefilled_augments = ""
+        if champion_name and APEXLOL_ENABLED:
+            from apexlol_data import extract_top_synergies
+            prefilled_augments = extract_top_synergies(champion_name)
+
+        prompt = HEXTECH_PROMPTS.get(LANGUAGE, HEXTECH_PROMPTS["zh"]).format(
+            hextech_history=history_str,
+        )
+
+        # 纯文字内容（无图片！）
+        options_text = "、".join(ocr_names)
+        api_contents = [
+            f"当前海克斯3选1的选项是：【{options_text}】\n\n"
+            f"请根据以下数据，告诉我应该选哪个。\n\n"
+        ]
+        if prefilled_augments:
+            api_contents.append(f"🚀【该英雄的海克斯数据】\n{prefilled_augments}\n")
+        api_contents.append(prompt)
+
+        response = _call_with_retry(
+            model=GEMINI_MODEL,
+            contents=api_contents,
+            config=types.GenerateContentConfig(temperature=0.2),
+            label="海克斯文字",
+        )
+        log.info("[Gemini] 纯文字海克斯分析完成")
+        return response.text
+    except Exception as e:
+        return f"❌ 海克斯分析失败: {str(e)}"
+
+
 
 
 
