@@ -97,7 +97,7 @@ CHAMPION_ALIASES = {
     "萨勒芬妮": "Seraphine", "塞特": "Sett", "沙漠皇帝": "Azir",
     "莎弥拉": "Samira",
     "慎": "Shen", "石头人": "Malphite", "狮子狗": "Rengar",
-    "斯卡纳": "Skarner", "斯维因": "Swain", "索拉卡": "Soraka", "孙悟空": "MonkeyKing",
+    "斯卡纳": "Skarner", "斯维因": "Swain", "乌鸦": "Swain", "索拉卡": "Soraka", "孙悟空": "MonkeyKing",
     "松果": "Ivern", "索恩": "Sion", "日女": "Leona", "曙光": "Leona", "死歌": "Karthus",
     "星妈": "Soraka", "瞎子": "LeeSin", "瞎": "LeeSin",
     "深海泰坦": "Nautilus",
