@@ -515,17 +515,45 @@ def _get_ocr():
 
 def _fuzzy_match_augment(ocr_text: str, valid_names: list[str]) -> str | None:
     """将 OCR 识别的文本模糊匹配到标准海克斯名。"""
+    import difflib
+    
     ocr_text = ocr_text.strip()
     if not ocr_text or len(ocr_text) < 2:
         return None
-    # 精确匹配
+        
+    # 黑名单拦截：游戏中大量出现的无用极短干扰词（避免错误包含匹配）
+    blacklist = ['刷新', '重随', '重新', '选择', '技能', '攻击', '伤害', '护甲', '魔抗', '生命', '回复', '确认', '取消', '物理', '魔法', '综合']
+    for b in blacklist:
+        if ocr_text == b:
+            return None
+            
+    # 精确匹配（最优先）
     for name in valid_names:
         if ocr_text == name:
             return name
-    # 包含匹配（OCR可能多/少一个字）
+            
+    # 包含匹配（OCR少读了字，或者名字包含OCR）
+    # 为防止 "刷新" 去匹配 "终极刷新"，只有在长度相近时才接受包含匹配
     for name in valid_names:
         if name in ocr_text or ocr_text in name:
-            return name
+            if len(ocr_text) >= 2 and abs(len(name) - len(ocr_text)) <= 2:
+                return name
+                
+    # 相似度模糊匹配（处理1~2个错别字）
+    best_match = None
+    best_score = 0
+    for name in valid_names:
+        # difflib 的 ratio 计算匹配度
+        r = difflib.SequenceMatcher(None, ocr_text, name).ratio()
+        if r > best_score:
+            best_score = r
+            best_match = name
+            
+    # 阈值：极短词需要几乎全对，长词可以容忍部分错误
+    threshold = 0.8 if len(ocr_text) <= 3 else 0.65
+    if best_score > threshold:
+        return best_match
+        
     return None
 
 
@@ -551,10 +579,21 @@ def ocr_hextech_names(image_path: str, champion_name: str = None) -> list[str] |
     if not all_augment_names:
         return None
 
-    # OCR 识别
+    # OCR 识别：裁剪画面中部区域，避免顶部计分板、底部聊天框及状态栏干扰
     try:
+        import cv2
+        img = cv2.imread(image_path)
         ocr = _get_ocr()
-        result, _ = ocr(image_path)
+        
+        if img is not None:
+            H, W = img.shape[:2]
+            # 截取中心垂直30%到70%，水平10%到90%的区域 (确保包含了所有的海克斯选项)
+            crop_img = img[int(H * 0.3):int(H * 0.7), int(W * 0.1):int(W * 0.9)]
+            result, _ = ocr(crop_img)
+        else:
+            # 万一读图失败，退回直接传路径
+            result, _ = ocr(image_path)
+            
         if not result:
             log.warning("[OCR] 未识别到任何文本")
             return None
