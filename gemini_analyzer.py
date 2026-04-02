@@ -36,7 +36,7 @@ def _is_retryable(exc: Exception) -> bool:
             or "eof occurred" in msg or isinstance(exc, concurrent.futures.TimeoutError))
 
 
-def _call_with_retry(*, model, contents, config, label="API", hard_timeout: float = None):
+def _call_with_retry(*, model, contents, config, label="API", hard_timeout: float = None, max_retries: int = MAX_RETRIES):
     """带自动重试的 Gemini API 调用封装。
     
     支持两种重试触发：
@@ -44,7 +44,7 @@ def _call_with_retry(*, model, contents, config, label="API", hard_timeout: floa
     2. hard_timeout 硬超时（秒）— 超时则中断当前请求并重试
     """
     last_exc = None
-    for attempt in range(1 + MAX_RETRIES):
+    for attempt in range(1 + max_retries):
         try:
             if hard_timeout:
                 # 用线程池实现硬超时
@@ -59,10 +59,10 @@ def _call_with_retry(*, model, contents, config, label="API", hard_timeout: floa
                     model=model, contents=contents, config=config,
                 )
         except Exception as e:
-            if _is_retryable(e) and attempt < MAX_RETRIES:
+            if _is_retryable(e) and attempt < max_retries:
                 last_exc = e
                 reason = "超时" if isinstance(e, (concurrent.futures.TimeoutError, TimeoutError)) else "SSL EOF"
-                log.warning(f"[{label}] {reason} ({attempt+1}/{MAX_RETRIES})，{RETRY_DELAY}s 后重试...")
+                log.warning(f"[{label}] {reason} ({attempt+1}/{max_retries})，{RETRY_DELAY}s 后重试...")
                 _time.sleep(RETRY_DELAY)
             else:
                 raise
@@ -181,7 +181,7 @@ def analyze_hextech_choice(png_bytes: bytes, global_context: str,
                            hextech_history: list[str], champion_name: str = None) -> str:
     """海克斯选择分析：截图中的3个选项 → 推荐选哪个。"""
     try:
-        from lang import HEXTECH_PROMPTS
+        from lang import HEXTECH_IMAGE_PROMPTS
         log.info(f"[Gemini] 海克斯选择分析 (英雄: {champion_name})...")
         
         history_str = "、".join(hextech_history) if hextech_history else "无"
@@ -194,7 +194,7 @@ def analyze_hextech_choice(png_bytes: bytes, global_context: str,
             if prefilled_augments:
                 log.info(f'[海克斯] 为 {champion_name} 注入高胜率"对照表"，增强识别能力')
 
-        prompt = HEXTECH_PROMPTS.get(LANGUAGE, HEXTECH_PROMPTS["zh"]).format(
+        prompt = HEXTECH_IMAGE_PROMPTS.get(LANGUAGE, HEXTECH_IMAGE_PROMPTS["zh"]).format(
             hextech_history=history_str,
         )
         
@@ -218,7 +218,8 @@ def analyze_hextech_choice(png_bytes: bytes, global_context: str,
             contents=api_contents,
             config=types.GenerateContentConfig(temperature=0.2),
             label="海克斯",
-            hard_timeout=8.0,  # 8秒硬超时，超时自动重试
+            hard_timeout=8.0,  # 8秒硬超时
+            max_retries=1,     # 防止卡死停摆，只重试一次
         )
         log.info("[Gemini] 海克斯选择分析完成")
         return response.text
@@ -230,7 +231,7 @@ def analyze_hextech_text(ocr_names: list[str], hextech_history: list[str],
                          champion_name: str = None) -> str:
     """纯文字海克斯分析：OCR 识别出的符文名 + ApexLol 数据 → AI 给建议（无截图，极速）。"""
     try:
-        from lang import HEXTECH_PROMPTS
+        from lang import HEXTECH_TEXT_PROMPTS
         log.info(f"[Gemini] 纯文字海克斯分析 (英雄: {champion_name}, 选项: {ocr_names})...")
 
         history_str = "、".join(hextech_history) if hextech_history else "无"
@@ -241,12 +242,11 @@ def analyze_hextech_text(ocr_names: list[str], hextech_history: list[str],
             from apexlol_data import extract_top_synergies
             prefilled_augments = extract_top_synergies(champion_name)
 
-        prompt = HEXTECH_PROMPTS.get(LANGUAGE, HEXTECH_PROMPTS["zh"]).format(
-            hextech_history=history_str,
-        )
-
-        # 纯文字内容（无图片！）
         options_text = "、".join(ocr_names)
+        prompt = HEXTECH_TEXT_PROMPTS.get(LANGUAGE, HEXTECH_TEXT_PROMPTS["zh"]).format(
+            hextech_history=history_str,
+            options_text=options_text,
+        )
 
         # 注入每个选项的真实效果描述（防止AI幻觉）
         effect_lines = []
@@ -262,20 +262,13 @@ def analyze_hextech_text(ocr_names: list[str], hextech_history: list[str],
             except Exception:
                 pass
 
-        api_contents = [
-            f"当前海克斯的可用选项**仅有以下几个**：【{options_text}】\n\n"
-        ]
+        api_contents = []
         if effect_lines:
-            api_contents.append("📋【各选项的真实游戏效果】（以下是官方描述，请严格基于此判断）\n"
+            api_contents.append("📋【各候选选项的真实游戏机制/效果】（供参考参考）\n"
                                 + "\n".join(effect_lines) + "\n")
         if prefilled_augments:
             api_contents.append(
                 f"🚀【高胜率对照表】该英雄的强势海克斯如下：\n{prefilled_augments}\n\n"
-                f"🛑【绝对核心指令 / 严禁幻觉】：\n"
-                f"你**必须、绝对只能**从上面的【{options_text}】中进行选择！\n"
-                f"如果对照表里的海克斯没有出现在上面的选项列表中，你**绝对不可推荐**！\n"
-                f"即使上方只列出了2个或1个选项（可能是读取遗漏），你也**必须只在这几个可见选项里挑一个最好的**！\n"
-                f"如果违背此项，自己脑补列表中不存在的选项，将导致严重错误！\n"
             )
         api_contents.append(prompt)
 
@@ -284,6 +277,8 @@ def analyze_hextech_text(ocr_names: list[str], hextech_history: list[str],
             contents=api_contents,
             config=types.GenerateContentConfig(temperature=0.2),
             label="海克斯文字",
+            hard_timeout=5.0,  # 文字生成应该很快，防止卡死
+            max_retries=1,
         )
         log.info("[Gemini] 纯文字海克斯分析完成")
         return response.text

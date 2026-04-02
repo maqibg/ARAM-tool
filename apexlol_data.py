@@ -549,8 +549,14 @@ def _fuzzy_match_augment(ocr_text: str, valid_names: list[str]) -> str | None:
             best_score = r
             best_match = name
             
-    # 阈值：极短词需要几乎全对，长词可以容忍较多错误（应对复杂背景下的严重乱码，如"珠元护子"）
-    threshold = 0.8 if len(ocr_text) <= 3 else 0.45
+    # 阈值：极短词需要几乎全对，长词可以容忍较多错误
+    if len(ocr_text) <= 3:
+        threshold = 0.8
+    elif len(ocr_text) <= 5:
+        threshold = 0.65  # 避免"攻击速度"匹配到"速度恶魔" (ratio=0.5)
+    else:
+        threshold = 0.55
+        
     if best_score >= threshold:
         return best_match
         
@@ -587,8 +593,9 @@ def ocr_hextech_names(image_path: str, champion_name: str = None) -> list[str] |
         
         if img is not None:
             H, W = img.shape[:2]
-            # 截取中心垂直30%到70%，水平10%到90%的区域 (确保包含了所有的海克斯选项)
-            crop_img = img[int(H * 0.3):int(H * 0.7), int(W * 0.1):int(W * 0.9)]
+            # 重新调整裁剪：避开详细描述区域，只保留卡片上方标题可能出现的区域
+            # 高度定在 40%~60%（卡片标题所在水平线附近），宽度定在 15%~85%
+            crop_img = img[int(H * 0.40):int(H * 0.60), int(W * 0.15):int(W * 0.85)]
             result, _ = ocr(crop_img)
         else:
             # 万一读图失败，退回直接传路径
