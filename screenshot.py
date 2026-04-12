@@ -20,11 +20,11 @@ def capture_hextech_cards() -> tuple[bytes, str]:
         img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
 
         w, h = img.size
-        # 裁剪比例经验值 (去除顶部25%，底部25%，左侧15%，右侧15%)
+        # 裁剪比例经验值 (去除顶部15%，底部15%，左侧15%，右侧15%)
         left = int(w * 0.15)
-        top = int(h * 0.25)
+        top = int(h * 0.15)
         right = int(w * 0.85)
-        bottom = int(h * 0.75)
+        bottom = int(h * 0.85)
         img = img.crop((left, top, right, bottom))
         
         # 对裁剪后的图片做极限缩放

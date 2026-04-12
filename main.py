@@ -455,37 +455,20 @@ class App:
             png_bytes, filepath = capture_hextech_cards()
             log.info(f"[截图裁切] ✅ {len(png_bytes)} bytes ({_time.time()-t0:.1f}s)")
 
+            # 截图完成，立即恢复主窗口（让用户在等 AI 分析时仍能看攻略）
+            self.root.after(0, self.root.deiconify)
+
             # 优先使用手动锁定的，否则使用 LCU 确认识别的英雄名
             curr_champ = self._locked_champion or getattr(self, "_detected_champion", None)
 
-            # ===== 快速路径：OCR 读名 + AI 纯文字分析（~3s） =====
-            result = None
-            if curr_champ and filepath:
-                try:
-                    from apexlol_data import ocr_hextech_names
-                    log.info("[OCR] 尝试本地读取符文名...")
-                    ocr_names = ocr_hextech_names(filepath, curr_champ)
-                    if ocr_names:
-                        log.info(f"[OCR] ✅ 识别到: {ocr_names} ({_time.time()-t0:.1f}s)")
-                        from gemini_analyzer import analyze_hextech_text
-                        result = analyze_hextech_text(
-                            ocr_names, _hextech_history, champion_name=curr_champ
-                        )
-                        log.info(f"[OCR+AI] ✅ 混合分析完成 ({_time.time()-t0:.1f}s)")
-                except Exception as e:
-                    log.warning(f"[OCR] 异常，回退到截图AI: {e}")
-                    result = None
-
-            # ===== 慢速路径：Gemini AI 截图视觉分析（兜底） =====
-            if not result:
-                t1 = _time.time()
-                log.info("[Gemini] ⚡ 海克斯分析中（截图AI兜底）...")
-                result = analyze_hextech_choice(
-                    png_bytes, _global_strategy, _hextech_history,
-                    champion_name=curr_champ
-                )
-                elapsed = _time.time() - t1
-                log.info(f"[Gemini] ⚡ 海克斯分析完成 ({elapsed:.1f}s)")
+            # ===== 直接走 Gemini 截图视觉分析（砍掉了不靠谱的 OCR 中间层） =====
+            log.info("[Gemini] ⚡ 海克斯截图分析中...")
+            result = analyze_hextech_choice(
+                png_bytes, _global_strategy, _hextech_history,
+                champion_name=curr_champ
+            )
+            elapsed = _time.time() - t0
+            log.info(f"[Gemini] ⚡ 海克斯分析完成 ({elapsed:.1f}s)")
 
             # 在主线程中显示结果
             self.root.after(0, lambda: self._show_hextech_result(result))
@@ -564,22 +547,65 @@ class App:
 
     # ==================== ApexLol 数据 ====================
     def _init_apexlol_cache(self):
-        """启动时加载 ApexLol 缓存，如果不存在则提示。"""
+        """启动时加载 ApexLol 缓存，过期或即将过期时自动后台刷新。"""
         try:
             from apexlol_data import load_cache, is_cache_valid, get_cache_info
+            import os
 
-            if is_cache_valid(APEXLOL_CACHE_DIR, APEXLOL_CACHE_TTL_DAYS):
+            cache_file = os.path.join(APEXLOL_CACHE_DIR, "apexlol_data.json")
+            cache_file_exists = os.path.exists(cache_file)
+
+            # 第一步：不管过没过期，只要文件存在就先加载（旧数据也比没数据强）
+            if cache_file_exists:
                 load_cache(APEXLOL_CACHE_DIR)
                 info = get_cache_info(APEXLOL_CACHE_DIR)
+                age_hours = info.get('age_hours', 0)
+                ttl_hours = APEXLOL_CACHE_TTL_DAYS * 24
+                remaining_hours = ttl_hours - age_hours
                 log.info(f"[ApexLol] 缓存已加载 ({info.get('champion_count', 0)} 英雄, "
-                         f"{info.get('age_hours', 0):.0f}h 前更新)")
+                         f"{age_hours:.0f}h 前更新, 剩余 {remaining_hours:.0f}h)")
                 self.status_label.configure(
                     text=T("status_data_loaded").format(info.get('champion_count', 0)))
+
+                # 第二步：检查是否需要自动刷新
+                if remaining_hours <= 0:
+                    # 已过期 → 立即后台刷新
+                    log.info("[ApexLol] 缓存已过期，自动后台刷新中...")
+                    self._auto_refresh_data()
+                elif remaining_hours <= 24:
+                    # 24小时内即将过期 → 预防性后台刷新
+                    log.info(f"[ApexLol] 缓存将在 {remaining_hours:.0f}h 后过期，预防性后台刷新中...")
+                    self._auto_refresh_data()
             else:
-                log.info("[ApexLol] 缓存不存在或已过期，请点击 [更新数据]")
+                # 完全没有缓存文件 → 首次使用，自动爬取
+                log.info("[ApexLol] 首次使用，自动后台爬取数据...")
                 self.status_label.configure(text=T("status_data_missing"))
+                self._auto_refresh_data()
         except Exception as e:
             log.warning(f"[ApexLol] 缓存初始化失败: {e}")
+
+    def _auto_refresh_data(self):
+        """静默后台刷新 ApexLol 数据（不阻塞主线程，不弹窗）。"""
+        if hasattr(self, '_data_updating') and self._data_updating:
+            return  # 已经在更新中，不重复触发
+        self._data_updating = True
+        log.info("[ApexLol] 静默后台刷新启动")
+
+        def _bg():
+            try:
+                from apexlol_scraper import scrape_all_champions
+                from apexlol_data import load_cache
+                scrape_all_champions(APEXLOL_CACHE_DIR)
+                load_cache(APEXLOL_CACHE_DIR)
+                log.info("[ApexLol] [OK] 静默后台刷新完成")
+                self.root.after(0, lambda: self.status_label.configure(
+                    text=T("status_data_done")))
+            except Exception as e:
+                log.error(f"[ApexLol] 静默后台刷新失败: {e}")
+            finally:
+                self._data_updating = False
+
+        threading.Thread(target=_bg, daemon=True, name="ApexLolAutoRefresh").start()
 
     def _on_update_data(self):
         """点击 🔄 数据按钮：在后台爬取 apexlol.info 数据。"""
